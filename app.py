@@ -13,7 +13,12 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'material_stock_secret_key_2024')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///material_stock.db')
+
+# Handle PostgreSQL URL compatibility (postgres:// -> postgresql://)
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///material_stock.db')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Email Configuration
@@ -254,6 +259,35 @@ def admin_required(f):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
+
+# Database initialization endpoint (for Vercel cold starts)
+@app.route('/api/init-db')
+def init_db():
+    """Initialize database tables - useful for first deployment"""
+    try:
+        db.create_all()
+        return jsonify({'success': True, 'message': 'Database tables created/verified'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Health check endpoint
+@app.route('/api/health')
+def health_check():
+    """Check if app and database are working"""
+    try:
+        # Test database connection
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'database': 'disconnected',
+            'error': str(e)
+        }), 500
 
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])
