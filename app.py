@@ -14,6 +14,12 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'material_stock_secret_key_2024')
 
+# Session configuration for Vercel (serverless)
+app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS only
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+
 # Handle PostgreSQL URL compatibility (postgres:// -> postgresql://)
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///material_stock.db')
 if database_url.startswith('postgres://'):
@@ -307,6 +313,7 @@ def login():
         ).filter(User.deleted_at == None).first()
         
         if user and user.check_password(password) and user.is_active:
+            session.permanent = True  # Make session persist
             session['user_id'] = user.id
             session['username'] = user.username
             session['role'] = user.role
